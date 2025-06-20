@@ -7,6 +7,7 @@ from selenium.webdriver.common.by import By
 import pandas as pd
 import numpy as np
 import re
+import matplotlib.pyplot as plt
 
 
 
@@ -32,6 +33,9 @@ def get_soup(URL):
     soup = BeautifulSoup(html, 'html.parser')
     return soup
 
+
+#function to webscrape the hitting stats for all teams given the user's year
+#returns a dataframe
 def get_hitting_stats(URL, year):
     #get parsed data from each url
     #soup_hitting = get_soup(URL+)
@@ -42,6 +46,14 @@ def get_hitting_stats(URL, year):
     #create dataframe from 1st list in df_hitting_list
     hitting_df = df_hitting_list[0]
 
+    #remove numbers from team name in 1st column and remove dupe team name from every col0 on every row 
+    # (ex: New York YankeesYankees -> New York Yankees)
+    for index, name in hitting_df.iterrows():
+        hitting_df.iloc[index, 0] = re.sub(r'\d+', '', hitting_df.iloc[index,0])
+        team_name = " ".join(re.split(r'(?=[A-Z])', hitting_df.iloc[index, 0])[:-1])
+        #team_name = ' '.join(team_name.split()[:-1]
+        hitting_df.iloc[index, 0] = team_name
+    
     #update column names to remove dupe (EX: TEAMTEAM)
     headers_list = []
     for col in hitting_df.columns:
@@ -51,19 +63,13 @@ def get_hitting_stats(URL, year):
             col2 = 'HR'
         headers_list.append(col2)
 
-    #remove numbers from team name in 1st column and remove dupe team name from every col0 on every row 
-    # (ex: New York YankeesYankees -> New York Yankees)
-    for index, name in hitting_df.iterrows():
-        hitting_df.iloc[index, 0] = re.sub(r'\d+', '', hitting_df.iloc[index,0])
-        team_name = " ".join(re.split(r'(?=[A-Z])', hitting_df.iloc[index, 0])[:-1])
-        #team_name = ' '.join(team_name.split()[:-1]
-        hitting_df.iloc[index, 0] = team_name
-    print(hitting_df)
+    hitting_df.columns = headers_list
 
-    #output to xlsx
-    hitting_df.to_excel('Team Hitting Stats.xlsx', sheet_name=year)
+    return hitting_df
 
 
+#function to webscrape the pitching stats for all teams given the user's year
+#returns a dataframe
 def get_pitching_stats(URL, year):
     #parse html table
     pitching_list_df = pd.read_html(URL+year)
@@ -93,21 +99,62 @@ def get_pitching_stats(URL, year):
     pitching_df.columns = headers_list
     #print(pitching_df.columns)
 
-    print(pitching_df)
-
-    #output to xlsx
-    pitching_df.to_excel('Team Pitching Stats.xlsx', sheet_name='2025')
+    return pitching_df
 
 
+
+
+#function to web scrape the league standings for the user's desired year
+#returns a dataframe
 def get_standings(URL, year):
     #parse html table
     standings_list_df = pd.read_html(URL+year)
-    print(standings_list_df)
+    stand_df = standings_list_df[0]
+    
+    #add column for division
+    stand_df.rename(columns={'AL East': 'Team Name'}, inplace=True)
+    
+
+    #remove rows with headers
+    stand_df.drop([5, 11, 17, 23, 29],inplace=True)
+    
+
+    #insert column for division and reset the indices
+    stand_df.insert(1,'Division', "")
+    standings_df = stand_df.reset_index(drop=True, inplace=False)
+    #print(standings_df)
+
+    #loop through rows and add division for each team
+    for i in range(len(stand_df)):
+        if i < 5:
+            standings_df.loc[i, 'Division'] = 'AL East'
+        elif i >= 5 and i < 10:
+            standings_df.loc[i, 'Division'] = 'AL Central'
+        elif i >= 10 and i < 15:
+            standings_df.loc[i, 'Division'] = 'AL West'
+        elif i >= 15 and i < 20:
+            standings_df.loc[i, 'Division'] = 'NL East'
+        elif i >= 20 and i < 25:
+            standings_df.loc[i, 'Division'] = 'NL Central'
+        else:
+            standings_df.loc[i, 'Division'] = 'NL West'
+        
+    #print(standings_df)
+    #stand_df.sort_values(by='W')
+
+    return standings_df
+    
+
 
 
 
 #main function
+#asks for user input of desired year
+#calls function to get stats dataframes and creates an xlsx
 def main():
+    #get users desired year for stats
+    year = input("What MLB season year would you like to see?")
+    #year = '2025'
 
     #url for each team standings, add year at the end of url string to get particular year
     standings_url = 'https://www.mlb.com/standings/' 
@@ -117,11 +164,22 @@ def main():
     pitching_stats_url = 'https://www.mlb.com/stats/team/pitching/'
 
     #call functions to scrape and create dataframes for each URL
-    get_hitting_stats(hitting_stats_url, '2025')
-    get_pitching_stats(pitching_stats_url, '2025')
-    #get_standings(standings_url, '2025')
+    hit_df = get_hitting_stats(hitting_stats_url, year)
+    pitch_df = get_pitching_stats(pitching_stats_url, year)
+    stand_df = get_standings(standings_url, year)
+
+    #output xlsx spreadsheet of data
+    #path = r'C:\\Users\jdowl\Python\MLB Stats.xlsx'
+    #writer = pd.ExcelWriter(path, engine = 'xlsxwriter')
+    #stand_df.to_excel(writer, sheet_name='standings'+year)
+    #hit_df.to_excel(writer, sheet_name='hitting'+year)
+    #pitch_df.to_excel(writer, sheet_name='pitching'+year)
+    #writer.close()
 
 
+    ####stat functions section#####
+    print(hit_df['R'].describe())
+    print(hit_df['AVG'].describe())
 
 
 if __name__ == '__main__':
