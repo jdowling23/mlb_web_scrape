@@ -8,6 +8,7 @@ import pandas as pd
 import numpy as np
 import re
 import matplotlib.pyplot as plt
+from datetime import datetime
 
 
 
@@ -107,9 +108,16 @@ def get_pitching_stats(URL, year):
 #function to web scrape the league standings for the user's desired year
 #returns a dataframe
 def get_standings(URL, year):
+    #include desired year into url
+    URL_list = URL.split('?')
+    URL_list[0] = URL_list[0]+year+'?'
+    URL = ''.join(URL_list)
+    print(URL)
+
     #parse html table
     standings_list_df = pd.read_html(URL+year)
     stand_df = standings_list_df[0]
+    #print(stand_df)
     
     #add column for division
     stand_df.rename(columns={'AL East': 'Team Name'}, inplace=True)
@@ -119,10 +127,21 @@ def get_standings(URL, year):
     stand_df.drop([5, 11, 17, 23, 29],inplace=True)
     
 
-    #insert column for division and reset the indices
+    #insert column for division, playoffs and reset the indices
     stand_df.insert(1,'Division', "")
+    stand_df.insert(2, 'Playoffs',"")
     standings_df = stand_df.reset_index(drop=True, inplace=False)
     #print(standings_df)
+
+    #loop through and check if team made playoffs
+    if year != str(datetime.now().year):
+        for idx, row in standings_df.iterrows():
+            if row['Team Name'][-1] in ('y', 'z', 'w'):
+                row['Playoffs'] = 'Y'
+                row['Team Name'] = row['Team Name'][:-1]
+            else:
+                row['Playoffs'] = 'N'
+
 
     #loop through rows and add division for each team
     for i in range(len(stand_df)):
@@ -140,7 +159,6 @@ def get_standings(URL, year):
             standings_df.loc[i, 'Division'] = 'NL West'
         
     #print(standings_df)
-    #stand_df.sort_values(by='W')
 
     return standings_df
     
@@ -153,11 +171,11 @@ def get_standings(URL, year):
 #calls function to get stats dataframes and creates an xlsx
 def main():
     #get users desired year for stats
-    year = input("What MLB season year would you like to see?")
-    #year = '2025'
+    #year = input("What MLB season year would you like to see?")
+    year = '2025'
 
     #url for each team standings, add year at the end of url string to get particular year
-    standings_url = 'https://www.mlb.com/standings/' 
+    standings_url = 'https://www.mlb.com/standings/?tableType=regularSeasonExpanded' 
     #url for season hitting stats for all teams, add year at end of url for particular year
     hitting_stats_url = 'https://www.mlb.com/stats/team/'
     #url for season pitching stats for all teams, add year at end of url for particular year
@@ -178,9 +196,25 @@ def main():
 
 
     ####stat functions section#####
-    print(hit_df['R'].describe())
-    print(hit_df['AVG'].describe())
+    # convert data to floats in order to use for statistics
+    print('--------------------------------------------------------')
+    print(hit_df.dtypes)
+    print(hit_df.describe(include='all'))
 
+    print('--------------------------------------------------------')
+    print(pitch_df.dtypes)
+    print(pitch_df.describe(include='all'))
+    print('--------------------------------------------------------')
+
+    print(stand_df.dtypes)
+    print(stand_df.describe(include='all'))
+
+
+    #plt.plot(float(hit_df.at[0,'R']), float(stand_df.at[25,'W']))
+    #plt.xlabel("Runs")
+    #plt.ylabel("Wins")
+    #plt.title("Dodgers W vs R")
+    #plt.show()
 
 if __name__ == '__main__':
     main()
